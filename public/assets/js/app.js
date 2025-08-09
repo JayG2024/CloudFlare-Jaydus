@@ -1763,4 +1763,6 @@ function JaydusAI() {
     );
 }
 
-ReactDOM.render(<JaydusAI />, document.getElementById('root'));
+const rootElement = document.getElementById('root');
+const root = ReactDOM.createRoot(rootElement);
+root.render(<JaydusAI />);
