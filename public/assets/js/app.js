@@ -1595,7 +1595,7 @@ function JaydusAI() {
                             <p style={{color: '#64748b', marginTop: '12px'}}>Need help? Contact support@jaydus.ai</p>
                         </div>
                     );
-                default: return renderDashboard();
+                default: return <DashboardView />;
             }
         } catch (error) {
             logError(error);
