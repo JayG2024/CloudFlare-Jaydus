@@ -1690,6 +1690,19 @@ function JaydusAI() {
                               'Send Reset Email'}
                          </button>
 
+                         {authMode === 'login' && (
+                             <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                                 <button
+                                     type="button"
+                                     className="btn btn-outline"
+                                     style={{ width: '100%' }}
+                                     onClick={() => setAuthMode('register')}
+                                 >
+                                     Sign up
+                                 </button>
+                             </div>
+                         )}
+
                          {/* Auth links */}
                          <div className="auth-links" style={{ marginTop: '16px', textAlign: 'center' }}>
                              {authMode === 'login' && (
