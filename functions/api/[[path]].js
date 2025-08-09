@@ -546,6 +546,40 @@ export async function onRequest(context) {
       return await handleSearch(request, env);
     } else if (path.startsWith('/api/auth/')) {
       return await handleAuth(request, env);
+    } else if (path === '/api/voice') {
+      // Temporary stub until implemented
+      if (request.method === 'POST') {
+        return new Response(JSON.stringify({
+          error: 'Not implemented',
+          message: 'Voice synthesis is not available yet.'
+        }), { status: 501, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      return new Response('Method not allowed', { status: 405, headers: corsHeaders });
+    } else if (path === '/api/conversations' && request.method === 'GET') {
+      // Minimal stub returning empty list
+      return new Response(JSON.stringify({ conversations: [] }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } else if (path === '/api/conversations' && request.method === 'POST') {
+      // Create and return a fake conversation id
+      const id = 'conv_' + Date.now();
+      return new Response(JSON.stringify({ conversationId: id }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } else if (/^\/api\/conversations\/.+\/messages$/.test(path) && request.method === 'POST') {
+      // Accept messages for a conversation (noop)
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } else if (/^\/api\/conversations\/.+$/.test(path) && request.method === 'GET') {
+      // Return empty messages for a conversation
+      return new Response(JSON.stringify({ conversation: { id: path.split('/').pop() }, messages: [] }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } else if (/^\/api\/conversations\/.+$/.test(path) && request.method === 'DELETE') {
+      return new Response(JSON.stringify({ deleted: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders });

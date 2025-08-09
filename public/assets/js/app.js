@@ -166,9 +166,9 @@ function JaydusAI() {
     const messagesEndRef = useRef(null);
 
     const models = {
-        fast: { name: 'Jaydus Fast', icon: './jaydus-logo-lightning.webp', description: 'Quick responses', badge: 'Fast', color: '#10b981', actual: 'openai/gpt-4o-mini' },
-        pro: { name: 'Jaydus Pro', icon: './jaydus-logo-balanced.webp', description: 'Versatile intelligence', badge: 'Pro', color: '#3b82f6', actual: 'openai/gpt-4o' },
-        max: { name: 'Jaydus Max', icon: './jaydus-logo-precise.webp', description: 'Peak performance', badge: 'Max', color: '#8b5cf6', actual: 'anthropic/claude-3.5-sonnet' }
+        fast: { name: 'Jaydus Fast', icon: '/assets/images/jaydus-logo.webp', description: 'Quick responses', badge: 'Fast', color: '#10b981', actual: 'openai/gpt-4o-mini' },
+        pro: { name: 'Jaydus Pro', icon: '/assets/images/jaydus-logo.webp', description: 'Versatile intelligence', badge: 'Pro', color: '#3b82f6', actual: 'openai/gpt-4o' },
+        max: { name: 'Jaydus Max', icon: '/assets/images/jaydus-logo.webp', description: 'Peak performance', badge: 'Max', color: '#8b5cf6', actual: 'anthropic/claude-3.5-sonnet' }
     };
 
     const voices = [
@@ -494,7 +494,7 @@ function JaydusAI() {
             setIsStreaming(false);
             setChatHistory(prev => [...prev, 
                 { role: 'user', content: userMessage },
-                { role: 'assistant', content: responseText, model: modelId }
+                { role: 'assistant', content: errorMessage, model: modelId }
             ]);
             setCurrentResponse('');
             
@@ -502,7 +502,7 @@ function JaydusAI() {
             await saveConversationToDB([
                 ...chatHistory,
                 { role: 'user', content: userMessage },
-                { role: 'assistant', content: responseText, model: modelId }
+                { role: 'assistant', content: errorMessage, model: modelId }
             ]);
         } catch (error) {
             logError(error);
@@ -1404,11 +1404,11 @@ function JaydusAI() {
                     type="text"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                     placeholder="Type your message..."
                     className="chat-input"
                 />
-                <button onClick={handleSendMessage} className="btn-primary">
+                <button onClick={handleSend} className="btn-primary">
                     <Icon name="send" size={16} />
                 </button>
             </div>
@@ -1420,7 +1420,7 @@ function JaydusAI() {
         <div style={{padding: '24px'}}>
             <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>AI Assistants</h2>
             <div className="assistants-grid">
-                {sampleAssistants.map(assistant => (
+                {assistants.map(assistant => (
                     <div key={assistant.id} className="assistant-card" style={{
                         background: 'white', padding: '20px', borderRadius: '12px', 
                         boxShadow: '0 2px 8px rgba(0,0,0,0.1)', cursor: 'pointer'
@@ -1445,7 +1445,7 @@ function JaydusAI() {
                     placeholder="Describe the image you want to create..."
                     style={{width: '100%', minHeight: '100px', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0'}}
                 />
-                <button onClick={handleGenerateImage} disabled={isGeneratingImage} className="btn-primary" style={{marginTop: '12px'}}>
+                <button onClick={generateImage} disabled={isGeneratingImage} className="btn-primary" style={{marginTop: '12px'}}>
                     {isGeneratingImage ? 'Generating...' : 'Generate Image'}
                 </button>
                 
@@ -1480,7 +1480,7 @@ function JaydusAI() {
                     placeholder="Enter text to convert to speech..."
                     style={{width: '100%', minHeight: '100px', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0'}}
                 />
-                <button onClick={handleGenerateVoice} disabled={isGeneratingVoice} className="btn-primary" style={{marginTop: '12px'}}>
+                <button onClick={generateVoice} disabled={isGeneratingVoice} className="btn-primary" style={{marginTop: '12px'}}>
                     {isGeneratingVoice ? 'Generating...' : 'Generate Voice'}
                 </button>
                 
@@ -1504,7 +1504,7 @@ function JaydusAI() {
                     placeholder="Describe what code you need help with..."
                     style={{width: '100%', minHeight: '150px', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontFamily: 'monospace'}}
                 />
-                <button onClick={() => handleSendMessage(codeQuery)} className="btn-primary" style={{marginTop: '12px'}}>
+                <button onClick={() => sendMessage(codeQuery)} className="btn-primary" style={{marginTop: '12px'}}>
                     Get Code Help
                 </button>
             </div>
