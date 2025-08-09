@@ -142,6 +142,11 @@ function JaydusAI() {
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     
+    // Voice Input
+    const [isListening, setIsListening] = useState(false);
+    const [recognition, setRecognition] = useState(null);
+    const [voiceError, setVoiceError] = useState('');
+    
     
     const messagesEndRef = useRef(null);
 
@@ -159,6 +164,64 @@ function JaydusAI() {
         { id: 'nova', name: 'Nova', description: 'Young, energetic' },
         { id: 'shimmer', name: 'Shimmer', description: 'Bright, cheerful' }
     ];
+
+    // Voice Recognition Setup
+    useEffect(() => {
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognitionInstance = new SpeechRecognition();
+            
+            recognitionInstance.continuous = false;
+            recognitionInstance.interimResults = false;
+            recognitionInstance.lang = 'en-US';
+            
+            setRecognition(recognitionInstance);
+        } else {
+            setVoiceError('Voice recognition not supported in this browser');
+        }
+    }, []);
+
+    // Voice Input Functions
+    const startVoiceRecognition = (callback) => {
+        if (!recognition) {
+            setVoiceError('Voice recognition not available');
+            return;
+        }
+
+        setIsListening(true);
+        setVoiceError('');
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            callback(transcript);
+            setIsListening(false);
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            setVoiceError(`Voice recognition error: ${event.error}`);
+            setIsListening(false);
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+        };
+
+        try {
+            recognition.start();
+        } catch (error) {
+            console.error('Error starting speech recognition:', error);
+            setVoiceError('Could not start voice recognition');
+            setIsListening(false);
+        }
+    };
+
+    const stopVoiceRecognition = () => {
+        if (recognition && isListening) {
+            recognition.stop();
+            setIsListening(false);
+        }
+    };
 
     useEffect(() => {
         loadModels();
@@ -898,6 +961,16 @@ function JaydusAI() {
                                 
                                 {/* Voice Input Button */}
                                 <button
+                                    onClick={() => {
+                                        if (isListening) {
+                                            stopVoiceRecognition();
+                                        } else {
+                                            startVoiceRecognition((transcript) => {
+                                                setSearchQuery(transcript);
+                                                handleSearchSubmit(transcript);
+                                            });
+                                        }
+                                    }}
                                     className="search-voice-btn"
                                     style={{
                                         position: 'absolute',
@@ -906,18 +979,21 @@ function JaydusAI() {
                                         transform: 'translateY(-50%)',
                                         width: '36px',
                                         height: '36px',
-                                        background: 'transparent',
-                                        border: '1px solid #e2e8f0',
+                                        background: isListening ? '#ef4444' : 'transparent',
+                                        border: `1px solid ${isListening ? '#ef4444' : '#e2e8f0'}`,
                                         borderRadius: '6px',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         cursor: 'pointer',
-                                        transition: 'all 0.3s ease'
+                                        transition: 'all 0.3s ease',
+                                        color: isListening ? 'white' : '#64748b',
+                                        animation: isListening ? 'pulse 1.5s ease-in-out infinite' : 'none'
                                     }}
-                                    title="Voice search"
+                                    title={isListening ? "Stop recording" : "Voice search"}
+                                    disabled={voiceError}
                                 >
-                                    <Icon name="mic" size={16} />
+                                    <Icon name={isListening ? "micOff" : "mic"} size={16} />
                                 </button>
                                 
                                 {/* Search Button */}
