@@ -789,11 +789,367 @@ function JaydusAI() {
         { id: 'billing', icon: 'creditCard', label: 'Billing' },
     ];
 
-    // Due to file size constraints, I'll add a note about the render functions
-    // All render functions from the original index.html file need to be added here
-    // including: renderDashboard, renderChat, renderImageGenerator, renderVoiceCreator,
-    // renderCustomAssistants, renderTeamManagement, renderAISearch, renderSettings,
-    // renderBilling, renderIntegrations, renderHelp, renderAuthForm, and the main app structure
+    // Search suggestions for getting started
+    const searchSuggestions = [
+        "What are the latest AI developments in 2025?",
+        "How does quantum computing work?", 
+        "Best practices for web development",
+        "Climate change solutions and innovations",
+        "Latest trends in cryptocurrency",
+        "How to build a successful startup"
+    ];
+
+    // Search functions
+    const handleSearchSubmit = async (query) => {
+        if (!query.trim() || isSearching) return;
+        
+        setIsSearching(true);
+        setSearchResults([]);
+        
+        try {
+            const response = await fetch(`${API_BASE}/api/search`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query: query.trim() })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.message || 'Search failed');
+            }
+            
+            setSearchResults([data]);
+        } catch (error) {
+            console.error('Search error:', error);
+            setSearchResults([{
+                query: query.trim(),
+                synthesizedResponse: `**Error**: ${error.message}\n\nPlease try again or check if the search service is properly configured.`,
+                sources: [],
+                relatedQuestions: []
+            }]);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    // Perplexity-style search interface
+    const renderAISearch = () => (
+        <div className="search-page">
+            {/* Header */}
+            <div className="search-header">
+                <div style={{
+                    maxWidth: '800px',
+                    margin: '0 auto',
+                    padding: '24px 32px',
+                    textAlign: 'center'
+                }}>
+                    <h1 className="search-title" style={{ marginBottom: '8px' }}>
+                        AI Web Search
+                    </h1>
+                    <p style={{ color: '#64748b', fontSize: '16px', margin: 0 }}>
+                        Search the web with AI-powered comprehensive answers
+                    </p>
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="search-content">
+                <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 24px' }}>
+                    
+                    {/* Center Search Bar (Perplexity style) */}
+                    {searchResults.length === 0 && (
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minHeight: '40vh',
+                            textAlign: 'center'
+                        }}>
+                            {/* Search Input */}
+                            <div className="search-input-wrapper" style={{
+                                position: 'relative',
+                                width: '100%',
+                                maxWidth: '600px',
+                                marginBottom: '32px'
+                            }}>
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleSearchSubmit(searchQuery)}
+                                    placeholder="Ask anything..."
+                                    className="search-input"
+                                    style={{
+                                        width: '100%',
+                                        padding: '16px 60px 16px 20px',
+                                        border: '2px solid #e2e8f0',
+                                        borderRadius: '12px',
+                                        fontSize: '16px',
+                                        background: 'white',
+                                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                                        transition: 'all 0.3s ease'
+                                    }}
+                                    disabled={isSearching}
+                                />
+                                
+                                {/* Voice Input Button */}
+                                <button
+                                    className="search-voice-btn"
+                                    style={{
+                                        position: 'absolute',
+                                        right: '50px',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        width: '36px',
+                                        height: '36px',
+                                        background: 'transparent',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '6px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.3s ease'
+                                    }}
+                                    title="Voice search"
+                                >
+                                    <Icon name="mic" size={16} />
+                                </button>
+                                
+                                {/* Search Button */}
+                                <button
+                                    onClick={() => handleSearchSubmit(searchQuery)}
+                                    disabled={isSearching || !searchQuery.trim()}
+                                    className="search-btn"
+                                    style={{
+                                        position: 'absolute',
+                                        right: '8px',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        width: '36px',
+                                        height: '36px',
+                                        background: searchQuery.trim() ? 'linear-gradient(135deg, #10b981, #059669)' : '#e2e8f0',
+                                        color: searchQuery.trim() ? 'white' : '#64748b',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: searchQuery.trim() ? 'pointer' : 'not-allowed',
+                                        transition: 'all 0.3s ease'
+                                    }}
+                                >
+                                    {isSearching ? (
+                                        <div style={{
+                                            width: '16px',
+                                            height: '16px',
+                                            border: '2px solid transparent',
+                                            borderTop: '2px solid currentColor',
+                                            borderRadius: '50%',
+                                            animation: 'spin 1s linear infinite'
+                                        }} />
+                                    ) : (
+                                        <Icon name="search" size={16} />
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Search Suggestions */}
+                            <div style={{ width: '100%', maxWidth: '600px' }}>
+                                <p style={{ 
+                                    color: '#64748b', 
+                                    fontSize: '14px', 
+                                    fontWeight: '500',
+                                    marginBottom: '12px'
+                                }}>
+                                    Try asking about:
+                                </p>
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                                    gap: '8px'
+                                }}>
+                                    {searchSuggestions.map((suggestion, index) => (
+                                        <button
+                                            key={index}
+                                            onClick={() => {
+                                                setSearchQuery(suggestion);
+                                                handleSearchSubmit(suggestion);
+                                            }}
+                                            className="search-suggestion"
+                                            style={{
+                                                padding: '12px 16px',
+                                                background: 'white',
+                                                border: '1px solid #e2e8f0',
+                                                borderRadius: '8px',
+                                                textAlign: 'left',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.3s ease',
+                                                fontSize: '14px',
+                                                color: '#374151',
+                                                boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                                            }}
+                                            onMouseOver={(e) => {
+                                                e.target.style.borderColor = '#10b981';
+                                                e.target.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                                            }}
+                                            onMouseOut={(e) => {
+                                                e.target.style.borderColor = '#e2e8f0';
+                                                e.target.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
+                                            }}
+                                        >
+                                            {suggestion}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Search Results */}
+                    {searchResults.length > 0 && (
+                        <div className="search-results">
+                            {searchResults.map((result, index) => (
+                                <div key={index}>
+                                    {/* Query Display */}
+                                    <div className="search-summary">
+                                        <div className="search-query">
+                                            <Icon name="search" size={18} />
+                                            <span>{result.query}</span>
+                                        </div>
+                                        
+                                        {/* Answer */}
+                                        <div 
+                                            className="search-response"
+                                            dangerouslySetInnerHTML={{ 
+                                                __html: result.synthesizedResponse.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+                                            }} 
+                                        />
+                                    </div>
+
+                                    {/* Sources */}
+                                    {result.sources && result.sources.length > 0 && (
+                                        <div className="search-sources">
+                                            <div className="sources-title">
+                                                <Icon name="link" size={16} />
+                                                Sources
+                                            </div>
+                                            <div className="sources-list">
+                                                {result.sources.map((source, sourceIndex) => (
+                                                    <div key={sourceIndex} className="source-item">
+                                                        <Icon name="externalLink" size={14} />
+                                                        <a href={source.url} target="_blank" rel="noopener noreferrer" className="source-link">
+                                                            {source.title}
+                                                        </a>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Related Questions */}
+                                    {result.relatedQuestions && result.relatedQuestions.length > 0 && (
+                                        <div className="related-questions">
+                                            <div className="related-title">
+                                                <Icon name="helpCircle" size={16} />
+                                                Related Questions
+                                            </div>
+                                            <div className="related-list">
+                                                {result.relatedQuestions.map((question, qIndex) => (
+                                                    <button
+                                                        key={qIndex}
+                                                        onClick={() => {
+                                                            setSearchQuery(question);
+                                                            handleSearchSubmit(question);
+                                                        }}
+                                                        className="related-question"
+                                                    >
+                                                        <Icon name="chevronRight" size={14} />
+                                                        {question}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+
+                            {/* New Search */}
+                            <div style={{
+                                marginTop: '32px',
+                                padding: '24px',
+                                background: '#f8fafc',
+                                borderRadius: '12px',
+                                textAlign: 'center'
+                            }}>
+                                <div className="search-input-wrapper" style={{
+                                    position: 'relative',
+                                    maxWidth: '500px',
+                                    margin: '0 auto'
+                                }}>
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleSearchSubmit(searchQuery)}
+                                        placeholder="Ask a follow-up question..."
+                                        className="search-input"
+                                        style={{
+                                            width: '100%',
+                                            padding: '12px 50px 12px 16px',
+                                            border: '2px solid #e2e8f0',
+                                            borderRadius: '8px',
+                                            fontSize: '14px',
+                                            background: 'white'
+                                        }}
+                                        disabled={isSearching}
+                                    />
+                                    <button
+                                        onClick={() => handleSearchSubmit(searchQuery)}
+                                        disabled={isSearching || !searchQuery.trim()}
+                                        className="search-btn"
+                                        style={{
+                                            position: 'absolute',
+                                            right: '4px',
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
+                                            width: '32px',
+                                            height: '32px',
+                                            background: searchQuery.trim() ? 'linear-gradient(135deg, #10b981, #059669)' : '#e2e8f0',
+                                            color: searchQuery.trim() ? 'white' : '#64748b',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            cursor: searchQuery.trim() ? 'pointer' : 'not-allowed'
+                                        }}
+                                    >
+                                        {isSearching ? (
+                                            <div style={{
+                                                width: '14px',
+                                                height: '14px',
+                                                border: '2px solid transparent',
+                                                borderTop: '2px solid currentColor',
+                                                borderRadius: '50%',
+                                                animation: 'spin 1s linear infinite'
+                                            }} />
+                                        ) : (
+                                            <Icon name="search" size={14} />
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 
     // Main render content function
     const renderContent = () => {
