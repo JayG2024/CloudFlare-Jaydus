@@ -65,6 +65,18 @@ async function handleChat(request, env) {
   try {
     const { messages, model = 'gpt-4o-mini', stream = false } = await request.json();
     
+    // Check if AIML API key is configured
+    if (!env.AIML_API_KEY) {
+      return new Response(JSON.stringify({ 
+        error: 'Chat service not configured',
+        message: 'AIML API key is missing. Please configure AIML_API_KEY in environment variables.',
+        code: 'MISSING_API_KEY'
+      }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
     // Sanitize inputs
     const sanitizedMessages = messages.map(msg => ({
       ...msg,
@@ -94,6 +106,20 @@ async function handleChat(request, env) {
         max_tokens: 4000
       })
     });
+
+    if (!aimlResponse.ok) {
+      const errorData = await aimlResponse.text();
+      console.error('AIML API error:', aimlResponse.status, errorData);
+      
+      return new Response(JSON.stringify({ 
+        error: 'Chat service error',
+        message: `Chat API returned ${aimlResponse.status}. Please check your API key and try again.`,
+        code: 'API_ERROR'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     if (stream) {
       return new Response(aimlResponse.body, {
@@ -125,21 +151,31 @@ async function handleImages(request, env) {
     return new Response('Method not allowed', { status: 405, headers: corsHeaders });
   }
 
-  const { prompt, aspectRatio = '16:9', model = 'photon-flash' } = await request.json();
-  
-  // Sanitize inputs
-  const sanitizedPrompt = sanitizeInput(prompt);
-
-  if (!['photon-flash', 'photon-2', 'flux-1-kontext-pro', 'seedream-3-0'].includes(model)) {
-    return new Response(JSON.stringify({ error: 'Invalid model' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
-
   try {
+    const { prompt, aspectRatio = '16:9', model = 'photon-flash' } = await request.json();
+  
+    // Sanitize inputs
+    const sanitizedPrompt = sanitizeInput(prompt);
+
+    if (!['photon-flash', 'photon-2', 'flux-1-kontext-pro', 'seedream-3-0'].includes(model)) {
+      return new Response(JSON.stringify({ error: 'Invalid model' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     // Handle AIML models (Flux and SeeDream)
     if (['flux-1-kontext-pro', 'seedream-3-0'].includes(model)) {
+      if (!env.AIML_API_KEY) {
+        return new Response(JSON.stringify({ 
+          error: 'Image service not configured',
+          message: 'AIML API key is missing. Please configure AIML_API_KEY in environment variables.',
+          code: 'MISSING_API_KEY'
+        }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
       const modelMap = {
         'flux-1-kontext-pro': 'flux/kontext-pro/text-to-image',
         'seedream-3-0': 'bytedance/seedream-3.0'
@@ -166,6 +202,17 @@ async function handleImages(request, env) {
     }
 
     // Handle Photon models via Luma API
+    if (!env.LUMA_API_KEY) {
+      return new Response(JSON.stringify({ 
+        error: 'Image service not configured',
+        message: 'LUMA API key is missing. Please configure LUMA_API_KEY in environment variables.',
+        code: 'MISSING_API_KEY'
+      }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     const lumaModelMap = {
       'photon-flash': 'ray-flash-2',
       'photon-2': 'ray-2'
@@ -209,57 +256,72 @@ async function handleSearch(request, env) {
     // Sanitize input
     const sanitizedQuery = sanitizeInput(query);
     
-    // Use Perplexity Sonar API for real search
-    try {
-      const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.PERPLEXITY_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'llama-3.1-sonar-small-128k-online',
-          messages: [
-            {
-              role: 'system',
-              content: 'Be precise and concise. Provide a direct answer followed by key supporting information. Include relevant sources when possible.'
-            },
-            {
-              role: 'user', 
-              content: sanitizedQuery
-            }
-          ]
-        })
+    // Check if Perplexity API key is configured
+    if (!env.PERPLEXITY_API_KEY) {
+      return new Response(JSON.stringify({ 
+        error: 'Search service not configured',
+        message: 'Perplexity API key is missing. Please configure PERPLEXITY_API_KEY in environment variables.',
+        code: 'MISSING_API_KEY'
+      }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
+    }
+    
+    // Use Perplexity Sonar API for real search
+    const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.PERPLEXITY_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-sonar-small-128k-online',
+        messages: [
+          {
+            role: 'system',
+            content: 'Be precise and concise. Provide a direct answer followed by key supporting information. Include relevant sources when possible.'
+          },
+          {
+            role: 'user', 
+            content: sanitizedQuery
+          }
+        ]
+      })
+    });
 
-      if (perplexityResponse.ok) {
-        const perplexityData = await perplexityResponse.json();
-        const content = perplexityData.choices[0]?.message?.content || '';
-        
-        const response = {
-          query: sanitizedQuery,
-          synthesizedResponse: content,
-          sources: [],
-          relatedQuestions: [
-            `What are the latest developments in ${sanitizedQuery}?`,
-            `How does ${sanitizedQuery} work?`,
-            `What are the benefits of ${sanitizedQuery}?`
-          ]
-        };
-
-        return new Response(JSON.stringify(response), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-    } catch (perplexityError) {
-      console.error('Perplexity API error:', perplexityError);
+    if (!perplexityResponse.ok) {
+      const errorData = await perplexityResponse.text();
+      console.error('Perplexity API error:', perplexityResponse.status, errorData);
+      
+      return new Response(JSON.stringify({ 
+        error: 'Search service error',
+        message: `Perplexity API returned ${perplexityResponse.status}. Please try again.`,
+        code: 'API_ERROR'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    // Fallback response if Perplexity fails
+    const perplexityData = await perplexityResponse.json();
+    const content = perplexityData.choices[0]?.message?.content || '';
+    
+    if (!content) {
+      return new Response(JSON.stringify({ 
+        error: 'No search results',
+        message: 'No results found for your search query. Please try a different query.',
+        code: 'NO_RESULTS'
+      }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
     const response = {
       query: sanitizedQuery,
-      synthesizedResponse: `**Direct Answer**: Here's what I found about "${sanitizedQuery}".\n\n**Analysis**: Real-time search results would appear here. The search functionality is ready for Perplexity integration.`,
-      sources: [],
+      synthesizedResponse: content,
+      sources: perplexityData.citations || [],
       relatedQuestions: [
         `What are the latest developments in ${sanitizedQuery}?`,
         `How does ${sanitizedQuery} work?`,
@@ -271,7 +333,12 @@ async function handleSearch(request, env) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Search failed' }), {
+    console.error('Search error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Search failed',
+      message: 'An unexpected error occurred during search. Please try again.',
+      code: 'INTERNAL_ERROR'
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
@@ -290,7 +357,7 @@ function logError(error, context) {
   });
 }
 
-// Authentication handlers (demo mode - replace with real auth system)
+// Authentication handlers - Real auth integration needed
 async function handleAuth(request, env) {
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405, headers: corsHeaders });
@@ -301,48 +368,22 @@ async function handleAuth(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // Demo authentication - always succeeds for development
-    // In production, you'd integrate with a real auth system like Auth0, Firebase Auth, etc.
-    
-    if (path === '/api/auth/register') {
-      // Demo registration
-      return new Response(JSON.stringify({
-        user: { 
-          id: 'demo-user-' + Date.now(),
-          email: sanitizeInput(email),
-          fullName: sanitizeInput(fullName),
-          created: new Date().toISOString()
-        },
-        token: 'demo-jwt-token-' + Date.now()
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    } else if (path === '/api/auth/login') {
-      // Demo login
-      return new Response(JSON.stringify({
-        user: { 
-          id: 'demo-user-123',
-          email: sanitizeInput(email),
-          fullName: 'Demo User'
-        },
-        token: 'demo-jwt-token-' + Date.now()
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    } else if (path === '/api/auth/reset-password') {
-      // Demo password reset
-      return new Response(JSON.stringify({
-        message: 'Password reset email sent successfully',
-        email: sanitizeInput(email)
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    return new Response('Not Found', { status: 404, headers: corsHeaders });
+    // Authentication service not configured - needs real auth integration
+    return new Response(JSON.stringify({
+      error: 'Authentication service not configured',
+      message: 'Please integrate with a real authentication provider (Auth0, Firebase, etc.)',
+      code: 'AUTH_NOT_CONFIGURED'
+    }), {
+      status: 503,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   } catch (error) {
     console.error('Auth error:', error);
-    return new Response(JSON.stringify({ error: 'Authentication failed' }), {
+    return new Response(JSON.stringify({ 
+      error: 'Authentication failed',
+      message: 'Invalid request format or server error',
+      code: 'AUTH_ERROR'
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
