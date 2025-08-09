@@ -467,12 +467,15 @@ function JaydusAI() {
         setIsSearching(true);
         
         try {
+            const token = localStorage.getItem('jaydus_token');
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            
             const response = await fetch(`${API_BASE}/api/search`, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${auth.token}`
-                },
+                headers,
                 body: JSON.stringify({ query: searchQuery })
             });
             

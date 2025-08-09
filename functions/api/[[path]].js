@@ -290,6 +290,65 @@ function logError(error, context) {
   });
 }
 
+// Authentication handlers (demo mode - replace with real auth system)
+async function handleAuth(request, env) {
+  if (request.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405, headers: corsHeaders });
+  }
+
+  try {
+    const { email, password, fullName } = await request.json();
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // Demo authentication - always succeeds for development
+    // In production, you'd integrate with a real auth system like Auth0, Firebase Auth, etc.
+    
+    if (path === '/api/auth/register') {
+      // Demo registration
+      return new Response(JSON.stringify({
+        user: { 
+          id: 'demo-user-' + Date.now(),
+          email: sanitizeInput(email),
+          fullName: sanitizeInput(fullName),
+          created: new Date().toISOString()
+        },
+        token: 'demo-jwt-token-' + Date.now()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } else if (path === '/api/auth/login') {
+      // Demo login
+      return new Response(JSON.stringify({
+        user: { 
+          id: 'demo-user-123',
+          email: sanitizeInput(email),
+          fullName: 'Demo User'
+        },
+        token: 'demo-jwt-token-' + Date.now()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } else if (path === '/api/auth/reset-password') {
+      // Demo password reset
+      return new Response(JSON.stringify({
+        message: 'Password reset email sent successfully',
+        email: sanitizeInput(email)
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    return new Response('Not Found', { status: 404, headers: corsHeaders });
+  } catch (error) {
+    console.error('Auth error:', error);
+    return new Response(JSON.stringify({ error: 'Authentication failed' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+}
+
 // Main request handler
 export async function onRequest(context) {
   const { request, env } = context;
@@ -304,7 +363,7 @@ export async function onRequest(context) {
 
   // Rate limiting
   const endpoint = path.split('/').pop();
-  if (['chat', 'images', 'search'].includes(endpoint)) {
+  if (['chat', 'images', 'search', 'auth'].includes(endpoint)) {
     const allowed = await checkRateLimit(clientIP, endpoint, env);
     if (!allowed) {
       return new Response(JSON.stringify({ 
@@ -324,6 +383,8 @@ export async function onRequest(context) {
       return await handleImages(request, env);
     } else if (path === '/api/search') {
       return await handleSearch(request, env);
+    } else if (path.startsWith('/api/auth/')) {
+      return await handleAuth(request, env);
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders });
