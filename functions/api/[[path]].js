@@ -435,6 +435,25 @@ Your goal is to be the most reliable, comprehensive, and transparent search assi
   }
 }
 
+// Voice API - placeholder to avoid frontend errors
+async function handleVoice(request, env) {
+  if (request.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405, headers: corsHeaders });
+  }
+  try {
+    return new Response(JSON.stringify({ error: 'Voice service not implemented' }), {
+      status: 501,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('Voice error:', error);
+    return new Response(JSON.stringify({ error: 'Voice processing failed' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+}
+
 // Error logging
 function logError(error, context) {
   const timestamp = new Date().toISOString();
@@ -546,6 +565,8 @@ export async function onRequest(context) {
       return await handleSearch(request, env);
     } else if (path.startsWith('/api/auth/')) {
       return await handleAuth(request, env);
+    } else if (path === '/api/voice') {
+      return await handleVoice(request, env);
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders });

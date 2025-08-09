@@ -94,10 +94,10 @@ const Icon = ({ name, size = 16, ...props }) => {
 const API_BASE = window.location.origin;
 
 function JaydusAI() {
-    // Authentication State - Production mode (no auth required)
-    const [user, setUser] = useState({ id: 'prod-user', email: 'user@jaydus.ai', fullName: 'User' });
-    const [isAuthenticated, setIsAuthenticated] = useState(true);
-    const [showAuthForm, setShowAuthForm] = useState(false);
+    // Authentication State - require login by default
+    const [user, setUser] = useState(null);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [showAuthForm, setShowAuthForm] = useState(true);
     const [authMode, setAuthMode] = useState('login'); // 'login', 'register', or 'reset'
     const [authLoading, setAuthLoading] = useState(false);
     const [authError, setAuthError] = useState('');
@@ -349,16 +349,16 @@ function JaydusAI() {
     };
 
     useEffect(() => {
-        // Initialize app (authentication bypassed for production)
+        // Initialize app
         loadModels();
         loadSampleAssistants();
         scrollToBottom();
         
-        // Generate session token if not exists
+        // Restore auth session if a token exists
         const existingToken = localStorage.getItem('jaydus_token');
-        if (!existingToken) {
-            const sessionToken = 'prod_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem('jaydus_token', sessionToken);
+        if (existingToken) {
+            setIsAuthenticated(true);
+            setShowAuthForm(false);
         }
     }, []);
 
@@ -494,7 +494,7 @@ function JaydusAI() {
             setIsStreaming(false);
             setChatHistory(prev => [...prev, 
                 { role: 'user', content: userMessage },
-                { role: 'assistant', content: responseText, model: modelId }
+                { role: 'assistant', content: errorMessage, model: modelId }
             ]);
             setCurrentResponse('');
             
@@ -502,7 +502,7 @@ function JaydusAI() {
             await saveConversationToDB([
                 ...chatHistory,
                 { role: 'user', content: userMessage },
-                { role: 'assistant', content: responseText, model: modelId }
+                { role: 'assistant', content: errorMessage, model: modelId }
             ]);
         } catch (error) {
             logError(error);
@@ -521,6 +521,15 @@ function JaydusAI() {
         setMessage('');
         setChatHistory(prev => [...prev, { role: 'user', content: userMessage }]);
         await sendMessage(userMessage);
+    };
+
+    // Wrapper to match existing JSX handlers
+    const handleSendMessage = async (maybeText) => {
+        if (typeof maybeText === 'string' && maybeText.trim()) {
+            await sendMessage(maybeText.trim());
+        } else {
+            await handleSend();
+        }
     };
 
     const generateImage = async () => {
@@ -578,6 +587,9 @@ function JaydusAI() {
         }
     };
 
+    // Wrapper to match existing JSX handler
+    const handleGenerateImage = generateImage;
+
     const generateVoice = async () => {
         if (!voiceText.trim() || isGeneratingVoice) return;
         
@@ -606,6 +618,9 @@ function JaydusAI() {
             setIsGeneratingVoice(false);
         }
     };
+
+    // Wrapper to match existing JSX handler
+    const handleGenerateVoice = generateVoice;
 
     const createAssistant = () => {
         if (!newAssistant.name.trim()) return;
@@ -1596,97 +1611,111 @@ function JaydusAI() {
     // Main App Return Statement
     if (showAuthForm || !isAuthenticated) {
         return (
-            <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-            }}>
-                <div style={{
-                    background: 'white', padding: '40px', borderRadius: '16px', 
-                    boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', width: '400px', maxWidth: '90vw'
-                }}>
-                    <div style={{textAlign: 'center', marginBottom: '32px'}}>
-                        <h1 style={{fontSize: '28px', fontWeight: '700', color: '#1a1a1a', marginBottom: '8px'}}>
-                            {authMode === 'reset' ? 'Reset Password' : 'Welcome to Jaydus AI'}
-                        </h1>
-                        <p style={{color: '#64748b', fontSize: '16px'}}>
-                            {authMode === 'login' ? 'Sign in to your account' : 
-                             authMode === 'register' ? 'Create your account' : 
-                             'Enter your email to receive reset instructions'}
-                        </p>
-                    </div>
+            <div className="auth-container">
+                <div className="auth-card">
+                     <div style={{textAlign: 'center', marginBottom: '32px'}}>
+                         <h1 style={{fontSize: '28px', fontWeight: '700', color: '#1a1a1a', marginBottom: '8px'}}>
+                             {authMode === 'reset' ? 'Reset Password' : 'Welcome to Jaydus AI'}
+                         </h1>
+                         <p style={{color: '#64748b', fontSize: '16px'}}>
+                             {authMode === 'login' ? 'Sign in to your account' : 
+                              authMode === 'register' ? 'Create your account' : 
+                              'Enter your email to receive reset instructions'}
+                         </p>
+                     </div>
 
-                    <form onSubmit={handleAuth}>
-                        {authMode === 'register' && (
-                            <div style={{marginBottom: '16px'}}>
-                                <label style={{display: 'block', fontWeight: '600', marginBottom: '8px', color: '#0f172a'}}>
-                                    Full Name
-                                </label>
-                                <input
-                                    type="text"
-                                    value={fullName}
-                                    onChange={(e) => setFullName(e.target.value)}
-                                    className="form-input"
-                                    required
-                                    placeholder="Enter your full name"
-                                />
-                            </div>
-                        )}
-                        
-                        <div style={{marginBottom: '16px'}}>
-                            <label style={{display: 'block', fontWeight: '600', marginBottom: '8px', color: '#0f172a'}}>
-                                Email Address
-                            </label>
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="form-input"
-                                required
-                                placeholder="Enter your email"
-                            />
-                        </div>
-                        
-                        {authMode !== 'reset' && (
-                            <div style={{marginBottom: '24px'}}>
-                                <label style={{display: 'block', fontWeight: '600', marginBottom: '8px', color: '#0f172a'}}>
-                                    Password
-                                </label>
-                                <input
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="form-input"
-                                    required
-                                    placeholder="Enter your password"
-                                    minLength="8"
-                                />
-                            </div>
-                        )}
-                        
-                        {authError && (
-                            <div className="error-message" style={{marginBottom: '16px'}}>
-                                <Icon name="alertTriangle" size={16} />
-                                {authError}
-                            </div>
-                        )}
-                        
-                        <button 
-                            type="submit"
-                            disabled={authLoading}
-                            style={{
-                                width: '100%', padding: '12px', background: 'linear-gradient(135deg, #06b6d4, #0891b2)',
-                                color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600',
-                                cursor: 'pointer', fontSize: '16px', opacity: authLoading ? 0.7 : 1
-                            }}
-                        >
-                            {authLoading ? 'Please wait...' : 
-                             authMode === 'login' ? 'Sign In' : 
-                             authMode === 'register' ? 'Create Account' : 
-                             'Send Reset Email'}
-                        </button>
-                    </form>
-                </div>
-            </div>
+                     <form onSubmit={handleAuth}>
+                         {authMode === 'register' && (
+                             <div style={{marginBottom: '16px'}}>
+                                 <label style={{display: 'block', fontWeight: '600', marginBottom: '8px', color: '#0f172a'}}>
+                                     Full Name
+                                 </label>
+                                 <input
+                                     type="text"
+                                     value={fullName}
+                                     onChange={(e) => setFullName(e.target.value)}
+                                     className="form-input"
+                                     required
+                                     placeholder="Enter your full name"
+                                 />
+                             </div>
+                         )}
+                         
+                         <div style={{marginBottom: '16px'}}>
+                             <label style={{display: 'block', fontWeight: '600', marginBottom: '8px', color: '#0f172a'}}>
+                                 Email Address
+                             </label>
+                             <input
+                                 type="email"
+                                 value={email}
+                                 onChange={(e) => setEmail(e.target.value)}
+                                 className="form-input"
+                                 required
+                                 placeholder="Enter your email"
+                             />
+                         </div>
+                         
+                         {authMode !== 'reset' && (
+                             <div style={{marginBottom: '24px'}}>
+                                 <label style={{display: 'block', fontWeight: '600', marginBottom: '8px', color: '#0f172a'}}>
+                                     Password
+                                 </label>
+                                 <input
+                                     type="password"
+                                     value={password}
+                                     onChange={(e) => setPassword(e.target.value)}
+                                     className="form-input"
+                                     required
+                                     placeholder="Enter your password"
+                                     minLength="8"
+                                 />
+                             </div>
+                         )}
+                         
+                         {authError && (
+                             <div className="auth-error" style={{marginBottom: '16px'}}>
+                                 <Icon name="alertTriangle" size={16} />
+                                 {authError}
+                             </div>
+                         )}
+                         
+                         <button 
+                             type="submit"
+                             disabled={authLoading}
+                             className="auth-submit"
+                         >
+                             {authLoading ? 'Please wait...' : 
+                              authMode === 'login' ? 'Sign In' : 
+                              authMode === 'register' ? 'Create Account' : 
+                              'Send Reset Email'}
+                         </button>
+
+                         {/* Auth links */}
+                         <div className="auth-links" style={{ marginTop: '16px', textAlign: 'center' }}>
+                             {authMode === 'login' && (
+                                 <>
+                                     <span style={{ fontSize: '14px', color: '#64748b' }}>Don't have an account? </span>
+                                     <a className="auth-link" onClick={() => setAuthMode('register')}>Create one</a>
+                                     <div style={{ height: '8px' }} />
+                                     <a className="auth-link" onClick={() => setAuthMode('reset')}>Forgot password?</a>
+                                 </>
+                             )}
+                             {authMode === 'register' && (
+                                 <>
+                                     <span style={{ fontSize: '14px', color: '#64748b' }}>Already have an account? </span>
+                                     <a className="auth-link" onClick={() => setAuthMode('login')}>Sign in</a>
+                                 </>
+                             )}
+                             {authMode === 'reset' && (
+                                 <>
+                                     <span style={{ fontSize: '14px', color: '#64748b' }}>Remembered your password? </span>
+                                     <a className="auth-link" onClick={() => setAuthMode('login')}>Return to sign in</a>
+                                 </>
+                             )}
+                         </div>
+                     </form>
+                 </div>
+             </div>
         );
     }
 
