@@ -1013,7 +1013,8 @@ function JaydusAI() {
     };
 
     // Perplexity-style search interface
-    const renderAISearch = () => (
+    function renderAISearch() {
+        return (
         <div className="search-page">
             {/* Header */}
             <div className="search-header">
@@ -1320,10 +1321,12 @@ function JaydusAI() {
                 </div>
             </div>
         </div>
-    );
+        );
+    }
 
     // Dashboard Component
-    const renderDashboard = () => (
+    function renderDashboard() {
+        return (
         <div className="dashboard-container" style={{padding: '24px'}}>
             <h1 style={{fontSize: '28px', fontWeight: '600', marginBottom: '24px'}}>Welcome to Jaydus AI</h1>
             
@@ -1380,10 +1383,12 @@ function JaydusAI() {
                 </div>
             </div>
         </div>
-    );
+        );
+    }
 
     // Chat Component
-    const renderChat = () => (
+    function renderChat() {
+        return (
         <div className="chat-container">
             <div className="chat-messages">
                 {chatHistory.map((msg, idx) => (
@@ -1413,10 +1418,12 @@ function JaydusAI() {
                 </button>
             </div>
         </div>
-    );
+        );
+    }
 
     // Custom Assistants Component
-    const renderCustomAssistants = () => (
+    function renderCustomAssistants() {
+        return (
         <div style={{padding: '24px'}}>
             <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>AI Assistants</h2>
             <div className="assistants-grid">
@@ -1432,10 +1439,12 @@ function JaydusAI() {
                 ))}
             </div>
         </div>
-    );
+        );
+    }
 
     // Image Generator Component
-    const renderImageGenerator = () => (
+    function renderImageGenerator() {
+        return (
         <div style={{padding: '24px'}}>
             <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>AI Image Generator</h2>
             <div className="image-generator">
@@ -1467,10 +1476,12 @@ function JaydusAI() {
                 )}
             </div>
         </div>
-    );
+        );
+    }
 
     // Voice Creator Component
-    const renderVoiceCreator = () => (
+    function renderVoiceCreator() {
+        return (
         <div style={{padding: '24px'}}>
             <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>AI Voice Synthesis</h2>
             <div className="voice-creator">
@@ -1491,10 +1502,12 @@ function JaydusAI() {
                 )}
             </div>
         </div>
-    );
+        );
+    }
 
     // Code Assistant Component
-    const renderCodeAssistant = () => (
+    function renderCodeAssistant() {
+        return (
         <div style={{padding: '24px'}}>
             <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>Code Assistant</h2>
             <div className="code-assistant">
@@ -1509,10 +1522,12 @@ function JaydusAI() {
                 </button>
             </div>
         </div>
-    );
+        );
+    }
 
     // Analytics Component
-    const renderAnalytics = () => (
+    function renderAnalytics() {
+        return (
         <div style={{padding: '24px'}}>
             <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>Analytics</h2>
             <div className="analytics-grid" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px'}}>
@@ -1530,7 +1545,8 @@ function JaydusAI() {
                 </div>
             </div>
         </div>
-    );
+        );
+    }
 
     // Main render content function
     const renderContent = () => {
@@ -1764,5 +1780,9 @@ function JaydusAI() {
 }
 
 const rootElement = document.getElementById('root');
-const root = ReactDOM.createRoot(rootElement);
-root.render(<JaydusAI />);
+if (ReactDOM && typeof ReactDOM.createRoot === 'function') {
+  const root = ReactDOM.createRoot(rootElement);
+  root.render(<JaydusAI />);
+} else {
+  ReactDOM.render(<JaydusAI />, rootElement);
+}
