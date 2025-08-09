@@ -223,6 +223,116 @@ function JaydusAI() {
         }
     };
 
+    // Reusable Voice Input Button Component
+    const VoiceInputButton = ({ onTranscript, style = {}, size = 16, className = "" }) => (
+        <button
+            onClick={() => {
+                if (isListening) {
+                    stopVoiceRecognition();
+                } else {
+                    startVoiceRecognition(onTranscript);
+                }
+            }}
+            className={`voice-input-btn ${className}`}
+            style={{
+                background: isListening ? '#ef4444' : 'transparent',
+                border: `1px solid ${isListening ? '#ef4444' : '#e2e8f0'}`,
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                color: isListening ? 'white' : '#64748b',
+                animation: isListening ? 'pulse 1.5s ease-in-out infinite' : 'none',
+                ...style
+            }}
+            title={isListening ? "Stop recording" : "Voice input"}
+            disabled={voiceError}
+        >
+            <Icon name={isListening ? "micOff" : "mic"} size={size} />
+        </button>
+    );
+
+    // Voice Input Wrapper Component (for chat inputs, forms, etc.)
+    const VoiceInputWrapper = ({ children, onTranscript, position = "right" }) => (
+        <div style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
+            {children}
+            <VoiceInputButton
+                onTranscript={onTranscript}
+                style={{
+                    position: 'absolute',
+                    [position]: '8px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '32px',
+                    height: '32px',
+                    zIndex: 10
+                }}
+                size={14}
+            />
+        </div>
+    );
+
+    // Example usage for chat input:
+    // <VoiceInputWrapper onTranscript={(text) => setMessage(text)}>
+    //     <input 
+    //         value={message} 
+    //         onChange={(e) => setMessage(e.target.value)}
+    //         placeholder="Type your message..."
+    //         style={{ paddingRight: '50px' }}
+    //     />
+    // </VoiceInputWrapper>
+    //
+    // Example usage for image prompt:
+    // <VoiceInputWrapper onTranscript={(text) => setImagePrompt(text)}>
+    //     <textarea
+    //         value={imagePrompt}
+    //         onChange={(e) => setImagePrompt(e.target.value)}
+    //         placeholder="Describe the image you want to generate..."
+    //         style={{ paddingRight: '50px' }}
+    //     />
+    // </VoiceInputWrapper>
+
+    // Voice Error Display Component
+    const VoiceErrorDisplay = () => {
+        if (!voiceError) return null;
+        
+        return (
+            <div style={{
+                position: 'fixed',
+                top: '20px',
+                right: '20px',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#dc2626',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                fontSize: '14px',
+                zIndex: 9999,
+                maxWidth: '300px',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Icon name="alertTriangle" size={16} />
+                    <span>{voiceError}</span>
+                    <button 
+                        onClick={() => setVoiceError('')}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#dc2626',
+                            cursor: 'pointer',
+                            marginLeft: 'auto'
+                        }}
+                    >
+                        <Icon name="x" size={14} />
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     useEffect(() => {
         loadModels();
         loadSampleAssistants();
@@ -960,41 +1070,22 @@ function JaydusAI() {
                                 />
                                 
                                 {/* Voice Input Button */}
-                                <button
-                                    onClick={() => {
-                                        if (isListening) {
-                                            stopVoiceRecognition();
-                                        } else {
-                                            startVoiceRecognition((transcript) => {
-                                                setSearchQuery(transcript);
-                                                handleSearchSubmit(transcript);
-                                            });
-                                        }
+                                <VoiceInputButton
+                                    onTranscript={(transcript) => {
+                                        setSearchQuery(transcript);
+                                        handleSearchSubmit(transcript);
                                     }}
-                                    className="search-voice-btn"
                                     style={{
                                         position: 'absolute',
                                         right: '50px',
                                         top: '50%',
                                         transform: 'translateY(-50%)',
                                         width: '36px',
-                                        height: '36px',
-                                        background: isListening ? '#ef4444' : 'transparent',
-                                        border: `1px solid ${isListening ? '#ef4444' : '#e2e8f0'}`,
-                                        borderRadius: '6px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.3s ease',
-                                        color: isListening ? 'white' : '#64748b',
-                                        animation: isListening ? 'pulse 1.5s ease-in-out infinite' : 'none'
+                                        height: '36px'
                                     }}
-                                    title={isListening ? "Stop recording" : "Voice search"}
-                                    disabled={voiceError}
-                                >
-                                    <Icon name={isListening ? "micOff" : "mic"} size={16} />
-                                </button>
+                                    size={16}
+                                    className="search-voice-btn"
+                                />
                                 
                                 {/* Search Button */}
                                 <button
@@ -1344,6 +1435,7 @@ function JaydusAI() {
 
     return (
         <div className="app">
+            <VoiceErrorDisplay />
             <div className="sidebar">
                 <div className="logo">
                     <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
