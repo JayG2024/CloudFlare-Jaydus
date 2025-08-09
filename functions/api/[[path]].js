@@ -84,10 +84,15 @@ async function handleChat(request, env) {
     }));
 
     // Map frontend model names to AIML API model names
+    // AIML API supported models (using proper model names)
     const aimlModelMap = {
-      'openai/gpt-4o-mini': 'openai/gpt-5-mini-2025-08-07',
-      'openai/gpt-4o': 'google/gemini-2.5-pro',
-      'anthropic/claude-3.5-sonnet': 'moonshot/kimi-k2-preview'
+      'fast': 'gpt-4o-mini',
+      'smart': 'gpt-4o',
+      'creative': 'gpt-4o',
+      'gpt-4o-mini': 'gpt-4o-mini',
+      'gpt-4o': 'gpt-4o',
+      'gpt-4': 'gpt-4',
+      'gpt-3.5-turbo': 'gpt-3.5-turbo'
     };
     
     const aimlModel = aimlModelMap[model] || 'gpt-4o-mini';
@@ -272,12 +277,14 @@ async function handleSearch(request, env) {
     let searchResults = [];
     let sources = [];
     
-    if (env.SERPER_API_KEY) {
+    // Support both SERPER_API_KEY and PERPLEXITY_API_KEY for backward compatibility
+    const searchApiKey = env.SERPER_API_KEY || env.PERPLEXITY_API_KEY;
+    if (searchApiKey) {
       try {
         const serperResponse = await fetch('https://google.serper.dev/search', {
           method: 'POST',
           headers: {
-            'X-API-KEY': env.SERPER_API_KEY,
+            'X-API-KEY': searchApiKey,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -350,7 +357,7 @@ Your goal is to be the most reliable, comprehensive, and transparent search assi
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'gpt-4o-2024-08-06',  // Use GPT-4o for synthesis
+        model: 'gpt-4o',  // Use GPT-4o for synthesis
         messages: [
           {
             role: 'system',
@@ -510,9 +517,14 @@ export async function onRequest(context) {
     return handleOptions();
   }
 
-  // Rate limiting
-  const endpoint = path.split('/').pop();
-  if (['chat', 'images', 'search', 'auth'].includes(endpoint)) {
+  // Rate limiting - check specific paths that need rate limiting
+  const isRateLimitedPath = path === '/api/chat' 
+    || path === '/api/images' 
+    || path === '/api/search' 
+    || path.startsWith('/api/auth/');
+  
+  if (isRateLimitedPath) {
+    const endpoint = path.startsWith('/api/auth/') ? 'auth' : path.split('/').pop();
     const allowed = await checkRateLimit(clientIP, endpoint, env);
     if (!allowed) {
       return new Response(JSON.stringify({ 

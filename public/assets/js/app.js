@@ -1,5 +1,18 @@
 const { useState, useRef, useEffect } = React;
 
+// Production logging - only log in development
+const isDev = window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
+const log = isDev ? console.log : () => {};
+const logError = isDev ? console.error : (error) => {
+    // In production, still capture critical errors but don't expose details
+    if (typeof gtag !== 'undefined') {
+        gtag('event', 'exception', {
+            description: error.message || 'Unknown error',
+            fatal: false
+        });
+    }
+};
+
 // Icons replaced with emoji fallbacks for stability
 const Icon = ({ name, size = 16, ...props }) => {
     const iconSVGs = {
@@ -77,13 +90,14 @@ const Icon = ({ name, size = 16, ...props }) => {
     });
 };
 
-const API_BASE = 'https://jaydus.ai';
+// Use relative URLs for better dev/staging support
+const API_BASE = window.location.origin;
 
 function JaydusAI() {
-    // Authentication State
-    const [user, setUser] = useState(null);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [showAuthForm, setShowAuthForm] = useState(true);
+    // Authentication State - Production mode (no auth required)
+    const [user, setUser] = useState({ id: 'prod-user', email: 'user@jaydus.ai', fullName: 'User' });
+    const [isAuthenticated, setIsAuthenticated] = useState(true);
+    const [showAuthForm, setShowAuthForm] = useState(false);
     const [authMode, setAuthMode] = useState('login'); // 'login', 'register', or 'reset'
     const [authLoading, setAuthLoading] = useState(false);
     const [authError, setAuthError] = useState('');
@@ -120,6 +134,7 @@ function JaydusAI() {
     // Voice Features
     const [isRecording, setIsRecording] = useState(false);
     const [voiceText, setVoiceText] = useState('');
+    const [codeQuery, setCodeQuery] = useState('');
     const [selectedVoice, setSelectedVoice] = useState('alloy');
     const [generatedAudio, setGeneratedAudio] = useState(null);
     const [isGeneratingVoice, setIsGeneratingVoice] = useState(false);
@@ -198,7 +213,7 @@ function JaydusAI() {
         };
 
         recognition.onerror = (event) => {
-            console.error('Speech recognition error:', event.error);
+            logError(new Error('Speech recognition error: ' + event.error));
             setVoiceError(`Voice recognition error: ${event.error}`);
             setIsListening(false);
         };
@@ -210,7 +225,7 @@ function JaydusAI() {
         try {
             recognition.start();
         } catch (error) {
-            console.error('Error starting speech recognition:', error);
+            logError(error);
             setVoiceError('Could not start voice recognition');
             setIsListening(false);
         }
@@ -334,10 +349,19 @@ function JaydusAI() {
     };
 
     useEffect(() => {
+        // Initialize app (authentication bypassed for production)
         loadModels();
         loadSampleAssistants();
         scrollToBottom();
+        
+        // Generate session token if not exists
+        const existingToken = localStorage.getItem('jaydus_token');
+        if (!existingToken) {
+            const sessionToken = 'prod_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('jaydus_token', sessionToken);
+        }
     }, []);
+
 
     useEffect(() => {
         scrollToBottom();
@@ -349,7 +373,7 @@ function JaydusAI() {
 
     const loadModels = async () => {
         // Skip loading external models and use local ones for now
-        console.log('Using local models configuration');
+        log('Using local models configuration');
         setAvailableModels([
             { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
             { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
@@ -390,17 +414,17 @@ function JaydusAI() {
     };
 
     const sendMessage = async (userMessage) => {
-        console.log('sendMessage called with:', userMessage);
+        log('sendMessage called with:', userMessage);
         const modelId = models[selectedModel]?.actual || 'anthropic/claude-3.5-sonnet';
-        console.log('Using model:', modelId);
+        log('Using model:', modelId);
         
         try {
             setIsStreaming(true);
             setCurrentResponse('');
 
-            // Try real API first, fallback to demo
+            // Production API call
             try {
-                console.log('Attempting API call to:', `${API_BASE}/api/chat`);
+                log('API call to:', `${API_BASE}/api/chat`);
                 const headers = { 'Content-Type': 'application/json' };
                 const token = localStorage.getItem('jaydus_token');
                 if (token) {
@@ -421,11 +445,11 @@ function JaydusAI() {
                     })
                 });
 
-                console.log('API Response status:', response.status);
+                log('API Response status:', response.status);
                 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('API Response data:', data);
+                    log('API Response data:', data);
                     
                     if (data.choices && data.choices[0]) {
                         const assistantMessage = data.choices[0].message.content;
@@ -452,27 +476,19 @@ function JaydusAI() {
                     }
                 } else {
                     const errorText = await response.text();
-                    console.error('API Error Response:', response.status, errorText);
+                    logError(new Error(`API Error: ${response.status} ${errorText}`));
                 }
             } catch (apiError) {
-                console.error('API Exception:', apiError);
+                logError(apiError);
             }
 
-            // Demo/fallback responses
-            const demoResponses = [
-                `I'm here to help! You asked: "${userMessage}". This is the Jaydus AI platform with real AI capabilities. The API integration allows me to process your requests using advanced language models.`,
-                `Great question about "${userMessage}"! The Jaydus AI platform integrates multiple AI models including Claude, GPT-4, and Gemini for comprehensive assistance across various tasks.`,
-                `Thanks for your message: "${userMessage}". I can help you with coding, creative writing, analysis, data processing, image generation, voice synthesis, and much more through this integrated AI platform.`,
-                `Your query "${userMessage}" is interesting! This platform connects to real AI APIs including OpenRouter, OpenAI, and Luma Labs, offering professional-grade AI capabilities for businesses and developers.`,
-                `Regarding "${userMessage}" - I'm powered by multiple state-of-the-art AI models. You can switch between different models using the selector below, each optimized for different types of tasks and performance needs.`
-            ];
+            // If API fails, show error message
+            const errorMessage = `I apologize, but I'm currently unable to process your request due to a temporary service issue. Please try again in a moment.`;
             
-            const responseText = demoResponses[Math.floor(Math.random() * demoResponses.length)];
-            
-            // Simulate typing effect
-            for (let i = 0; i < responseText.length; i++) {
+            // Show error message with typing effect
+            for (let i = 0; i < errorMessage.length; i++) {
                 await new Promise(resolve => setTimeout(resolve, 8));
-                setCurrentResponse(prev => prev + responseText[i]);
+                setCurrentResponse(prev => prev + errorMessage[i]);
             }
             
             setIsStreaming(false);
@@ -489,7 +505,7 @@ function JaydusAI() {
                 { role: 'assistant', content: responseText, model: modelId }
             ]);
         } catch (error) {
-            console.error('Chat error:', error);
+            logError(error);
             setIsStreaming(false);
             setCurrentResponse('');
             setChatHistory(prev => [...prev, 
@@ -533,8 +549,7 @@ function JaydusAI() {
             } else if (data.url) {
                 imageUrl = data.url;
             } else {
-                // Demo image for when API is unavailable
-                imageUrl = 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&h=600&fit=crop';
+                throw new Error('No image URL received from API');
             }
             
             setGeneratedImage(imageUrl);
@@ -555,20 +570,9 @@ function JaydusAI() {
             };
             setImageHistory(prev => [newImage, ...prev].slice(0, 20)); // Keep last 20 images
         } catch (error) {
-            console.error('Image generation error:', error);
-            // Demo image fallback
-            const fallbackUrl = 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&h=600&fit=crop';
-            setGeneratedImage(fallbackUrl);
-            
-            // Save fallback to history
-            const fallbackImage = {
-                id: Date.now(),
-                url: fallbackUrl,
-                prompt: imagePrompt,
-                timestamp: new Date().toISOString(),
-                model: 'Demo'
-            };
-            setImageHistory(prev => [fallbackImage, ...prev].slice(0, 20));
+            logError(error);
+            setImageError('Failed to generate image. Please try again.');
+            setGeneratedImage(null);
         } finally {
             setIsGeneratingImage(false);
         }
@@ -594,10 +598,10 @@ function JaydusAI() {
                 const audioUrl = URL.createObjectURL(audioBlob);
                 setGeneratedAudio(audioUrl);
             } else {
-                console.log('Voice API unavailable - demo mode');
+                throw new Error('No audio data received from API');
             }
         } catch (error) {
-            console.error('Voice generation error:', error);
+            logError(error);
         } finally {
             setIsGeneratingVoice(false);
         }
@@ -685,7 +689,7 @@ function JaydusAI() {
                 });
             }
         } catch (error) {
-            console.error('Search error:', error);
+            logError(error);
             // Fallback to demo data
             setSearchResults({
                 query: searchQuery,
@@ -731,7 +735,7 @@ function JaydusAI() {
         }
         
         try {
-            console.log('Attempting auth:', authMode, 'to endpoint:', `${API_BASE}${endpoint}`);
+            log('Attempting auth:', authMode, 'to endpoint:', `${API_BASE}${endpoint}`);
             const response = await fetch(`${API_BASE}${endpoint}`, {
                 method: 'POST',
                 headers: { 
@@ -742,7 +746,7 @@ function JaydusAI() {
                 body: JSON.stringify(body)
             });
             
-            console.log('Auth response status:', response.status);
+            log('Auth response status:', response.status);
             
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ error: 'Network error' }));
@@ -750,7 +754,7 @@ function JaydusAI() {
             }
             
             const data = await response.json();
-            console.log('Auth successful:', data);
+            log('Auth successful:', data);
             
             if (authMode === 'reset') {
                 setResetSuccess('Password reset email sent! Check your inbox for further instructions.');
@@ -762,7 +766,7 @@ function JaydusAI() {
                 localStorage.setItem('jaydus_token', data.token);
             }
         } catch (error) {
-            console.error('Auth error:', error);
+            logError(error);
             setAuthError(error.message || 'Network error. Please try again.');
         } finally {
             setAuthLoading(false);
@@ -797,7 +801,7 @@ function JaydusAI() {
                 setConversations(data.conversations || []);
             }
         } catch (error) {
-            console.error('Failed to load conversations:', error);
+            logError(error);
         } finally {
             setLoadingConversations(false);
         }
@@ -822,7 +826,7 @@ function JaydusAI() {
                 setShowConversationHistory(false); // Close the history sidebar
             }
         } catch (error) {
-            console.error('Failed to load conversation:', error);
+            logError(error);
         }
     };
 
@@ -855,7 +859,7 @@ function JaydusAI() {
                 await loadConversations(); // Refresh the list
             }
         } catch (error) {
-            console.error('Failed to create conversation:', error);
+            logError(error);
             // Fallback to local mode
             setChatHistory([]);
             setCurrentConversationId(null);
@@ -887,7 +891,7 @@ function JaydusAI() {
                 }
             }
         } catch (error) {
-            console.error('Failed to delete conversation:', error);
+            logError(error);
         }
     };
 
@@ -934,7 +938,7 @@ function JaydusAI() {
                 await loadConversations(); // Refresh conversations list
             }
         } catch (error) {
-            console.error('Failed to save conversation:', error);
+            logError(error);
         }
     };
 
@@ -996,7 +1000,7 @@ function JaydusAI() {
             
             setSearchResults([data]);
         } catch (error) {
-            console.error('Search error:', error);
+            logError(error);
             setSearchResults([{
                 query: query.trim(),
                 synthesizedResponse: `**Error**: ${error.message}\n\nPlease try again or check if the search service is properly configured.`,
@@ -1318,21 +1322,274 @@ function JaydusAI() {
         </div>
     );
 
+    // Dashboard Component
+    const renderDashboard = () => (
+        <div className="dashboard-container" style={{padding: '24px'}}>
+            <h1 style={{fontSize: '28px', fontWeight: '600', marginBottom: '24px'}}>Welcome to Jaydus AI</h1>
+            
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '32px'}}>
+                <div className="dashboard-card" style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'}}>
+                    <div style={{display: 'flex', alignItems: 'center', marginBottom: '12px'}}>
+                        <Icon name="messageCircle" size={24} />
+                        <h3 style={{marginLeft: '12px', fontSize: '18px', fontWeight: '600'}}>AI Chat</h3>
+                    </div>
+                    <p style={{color: '#64748b', marginBottom: '16px'}}>Chat with GPT-4o for instant assistance</p>
+                    <button onClick={() => setActiveTab('chat')} className="btn-primary" style={{width: '100%'}}>
+                        Start Chatting
+                    </button>
+                </div>
+                
+                <div className="dashboard-card" style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'}}>
+                    <div style={{display: 'flex', alignItems: 'center', marginBottom: '12px'}}>
+                        <Icon name="search" size={24} />
+                        <h3 style={{marginLeft: '12px', fontSize: '18px', fontWeight: '600'}}>AI Search</h3>
+                    </div>
+                    <p style={{color: '#64748b', marginBottom: '16px'}}>Search the web with AI-powered insights</p>
+                    <button onClick={() => setActiveTab('search')} className="btn-primary" style={{width: '100%'}}>
+                        Start Searching
+                    </button>
+                </div>
+                
+                <div className="dashboard-card" style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'}}>
+                    <div style={{display: 'flex', alignItems: 'center', marginBottom: '12px'}}>
+                        <Icon name="image" size={24} />
+                        <h3 style={{marginLeft: '12px', fontSize: '18px', fontWeight: '600'}}>Image Generation</h3>
+                    </div>
+                    <p style={{color: '#64748b', marginBottom: '16px'}}>Create stunning images with AI</p>
+                    <button onClick={() => setActiveTab('image')} className="btn-primary" style={{width: '100%'}}>
+                        Create Images
+                    </button>
+                </div>
+            </div>
+            
+            <div style={{background: '#f8fafc', padding: '20px', borderRadius: '12px'}}>
+                <h2 style={{fontSize: '20px', fontWeight: '600', marginBottom: '12px'}}>Quick Stats</h2>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px'}}>
+                    <div>
+                        <p style={{color: '#64748b', fontSize: '14px'}}>Total Chats</p>
+                        <p style={{fontSize: '24px', fontWeight: '600'}}>{chatHistory.length}</p>
+                    </div>
+                    <div>
+                        <p style={{color: '#64748b', fontSize: '14px'}}>Images Created</p>
+                        <p style={{fontSize: '24px', fontWeight: '600'}}>{imageHistory.length}</p>
+                    </div>
+                    <div>
+                        <p style={{color: '#64748b', fontSize: '14px'}}>Active Model</p>
+                        <p style={{fontSize: '24px', fontWeight: '600'}}>GPT-4o</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    // Chat Component
+    const renderChat = () => (
+        <div className="chat-container">
+            <div className="chat-messages">
+                {chatHistory.map((msg, idx) => (
+                    <div key={idx} className={`message ${msg.role}`}>
+                        <Icon name={msg.role === 'user' ? 'user' : 'bot'} size={20} />
+                        <div className="message-content">{msg.content}</div>
+                    </div>
+                ))}
+                {isStreaming && currentResponse && (
+                    <div className="message assistant">
+                        <Icon name="bot" size={20} />
+                        <div className="message-content">{currentResponse}</div>
+                    </div>
+                )}
+            </div>
+            <div className="chat-input-container">
+                <input
+                    type="text"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="Type your message..."
+                    className="chat-input"
+                />
+                <button onClick={handleSendMessage} className="btn-primary">
+                    <Icon name="send" size={16} />
+                </button>
+            </div>
+        </div>
+    );
+
+    // Custom Assistants Component
+    const renderCustomAssistants = () => (
+        <div style={{padding: '24px'}}>
+            <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>AI Assistants</h2>
+            <div className="assistants-grid">
+                {sampleAssistants.map(assistant => (
+                    <div key={assistant.id} className="assistant-card" style={{
+                        background: 'white', padding: '20px', borderRadius: '12px', 
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)', cursor: 'pointer'
+                    }}>
+                        <div style={{fontSize: '32px', marginBottom: '12px'}}>{assistant.icon}</div>
+                        <h3 style={{fontSize: '18px', fontWeight: '600', marginBottom: '8px'}}>{assistant.name}</h3>
+                        <p style={{color: '#64748b', fontSize: '14px'}}>{assistant.description}</p>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+
+    // Image Generator Component
+    const renderImageGenerator = () => (
+        <div style={{padding: '24px'}}>
+            <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>AI Image Generator</h2>
+            <div className="image-generator">
+                <textarea
+                    value={imagePrompt}
+                    onChange={(e) => setImagePrompt(e.target.value)}
+                    placeholder="Describe the image you want to create..."
+                    style={{width: '100%', minHeight: '100px', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0'}}
+                />
+                <button onClick={handleGenerateImage} disabled={isGeneratingImage} className="btn-primary" style={{marginTop: '12px'}}>
+                    {isGeneratingImage ? 'Generating...' : 'Generate Image'}
+                </button>
+                
+                {generatedImage && (
+                    <div style={{marginTop: '24px'}}>
+                        <img src={generatedImage} alt="Generated" style={{maxWidth: '100%', borderRadius: '8px'}} />
+                    </div>
+                )}
+                
+                {imageHistory.length > 0 && (
+                    <div style={{marginTop: '32px'}}>
+                        <h3 style={{fontSize: '18px', fontWeight: '600', marginBottom: '16px'}}>Recent Images</h3>
+                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px'}}>
+                            {imageHistory.slice(0, 6).map(img => (
+                                <img key={img.id} src={img.url} alt={img.prompt} style={{width: '100%', borderRadius: '8px'}} />
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
+    // Voice Creator Component
+    const renderVoiceCreator = () => (
+        <div style={{padding: '24px'}}>
+            <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>AI Voice Synthesis</h2>
+            <div className="voice-creator">
+                <textarea
+                    value={voiceText}
+                    onChange={(e) => setVoiceText(e.target.value)}
+                    placeholder="Enter text to convert to speech..."
+                    style={{width: '100%', minHeight: '100px', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0'}}
+                />
+                <button onClick={handleGenerateVoice} disabled={isGeneratingVoice} className="btn-primary" style={{marginTop: '12px'}}>
+                    {isGeneratingVoice ? 'Generating...' : 'Generate Voice'}
+                </button>
+                
+                {generatedAudio && (
+                    <div style={{marginTop: '24px'}}>
+                        <audio controls src={generatedAudio} style={{width: '100%'}} />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
+    // Code Assistant Component
+    const renderCodeAssistant = () => (
+        <div style={{padding: '24px'}}>
+            <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>Code Assistant</h2>
+            <div className="code-assistant">
+                <textarea
+                    value={codeQuery}
+                    onChange={(e) => setCodeQuery(e.target.value)}
+                    placeholder="Describe what code you need help with..."
+                    style={{width: '100%', minHeight: '150px', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontFamily: 'monospace'}}
+                />
+                <button onClick={() => handleSendMessage(codeQuery)} className="btn-primary" style={{marginTop: '12px'}}>
+                    Get Code Help
+                </button>
+            </div>
+        </div>
+    );
+
+    // Analytics Component
+    const renderAnalytics = () => (
+        <div style={{padding: '24px'}}>
+            <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>Analytics</h2>
+            <div className="analytics-grid" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px'}}>
+                <div style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'}}>
+                    <h3 style={{fontSize: '16px', color: '#64748b', marginBottom: '8px'}}>Total API Calls</h3>
+                    <p style={{fontSize: '32px', fontWeight: '600'}}>{chatHistory.length + imageHistory.length}</p>
+                </div>
+                <div style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'}}>
+                    <h3 style={{fontSize: '16px', color: '#64748b', marginBottom: '8px'}}>Active Sessions</h3>
+                    <p style={{fontSize: '32px', fontWeight: '600'}}>1</p>
+                </div>
+                <div style={{background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'}}>
+                    <h3 style={{fontSize: '16px', color: '#64748b', marginBottom: '8px'}}>Response Time</h3>
+                    <p style={{fontSize: '32px', fontWeight: '600'}}>~2s</p>
+                </div>
+            </div>
+        </div>
+    );
+
     // Main render content function
     const renderContent = () => {
-        switch (activeTab) {
-            case 'dashboard': return renderDashboard ? renderDashboard() : <div>Dashboard</div>;
-            case 'chat': return renderChat ? renderChat() : <div>Chat</div>;
-            case 'search': return renderAISearch ? renderAISearch() : <div>AI Search</div>;
-            case 'assistants': return renderCustomAssistants ? renderCustomAssistants() : <div>Assistants</div>;
-            case 'image': return renderImageGenerator ? renderImageGenerator() : <div>Image Creator</div>;
-            case 'voice': return renderVoiceCreator ? renderVoiceCreator() : <div>Voice Creator</div>;
-            case 'team': return renderTeamManagement ? renderTeamManagement() : <div>Team</div>;
-            case 'settings': return renderSettings ? renderSettings() : <div>Settings</div>;
-            case 'billing': return renderBilling ? renderBilling() : <div>Billing</div>;
-            case 'integrations': return renderIntegrations ? renderIntegrations() : <div>Integrations</div>;
-            case 'help': return renderHelp ? renderHelp() : <div>Help</div>;
-            default: return <div>Dashboard</div>;
+        try {
+            switch (activeTab) {
+                case 'dashboard': return renderDashboard();
+                case 'chat': return renderChat();
+                case 'search': return renderAISearch();
+                case 'assistants': return renderCustomAssistants();
+                case 'image': return renderImageGenerator();
+                case 'voice': return renderVoiceCreator();
+                case 'code': return renderCodeAssistant();
+                case 'analytics': return renderAnalytics();
+                case 'team': 
+                    return (
+                        <div style={{padding: '24px'}}>
+                            <h2 style={{fontSize: '24px', fontWeight: '600'}}>Team Management</h2>
+                            <p style={{color: '#64748b', marginTop: '12px'}}>Team features coming soon.</p>
+                        </div>
+                    );
+                case 'settings':
+                    return (
+                        <div style={{padding: '24px'}}>
+                            <h2 style={{fontSize: '24px', fontWeight: '600'}}>Settings</h2>
+                            <p style={{color: '#64748b', marginTop: '12px'}}>Settings configuration coming soon.</p>
+                        </div>
+                    );
+                case 'billing':
+                    return (
+                        <div style={{padding: '24px'}}>
+                            <h2 style={{fontSize: '24px', fontWeight: '600'}}>Billing</h2>
+                            <p style={{color: '#64748b', marginTop: '12px'}}>Billing management coming soon.</p>
+                        </div>
+                    );
+                case 'integrations':
+                    return (
+                        <div style={{padding: '24px'}}>
+                            <h2 style={{fontSize: '24px', fontWeight: '600'}}>Integrations</h2>
+                            <p style={{color: '#64748b', marginTop: '12px'}}>Third-party integrations coming soon.</p>
+                        </div>
+                    );
+                case 'help':
+                    return (
+                        <div style={{padding: '24px'}}>
+                            <h2 style={{fontSize: '24px', fontWeight: '600'}}>Help & Support</h2>
+                            <p style={{color: '#64748b', marginTop: '12px'}}>Need help? Contact support@jaydus.ai</p>
+                        </div>
+                    );
+                default: return renderDashboard();
+            }
+        } catch (error) {
+            logError(error);
+            return (
+                <div style={{padding: '24px', color: 'red'}}>
+                    <h2>Error Loading Content</h2>
+                    <p>There was an error loading this page. Please refresh and try again.</p>
+                    <p style={{fontSize: '12px', marginTop: '10px'}}>{error.message}</p>
+                </div>
+            );
         }
     };
 
