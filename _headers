@@ -1,0 +1,29 @@
+# Cache Control Headers for Jaydus AI Platform
+
+# Main HTML - Short cache for updates
+/
+  Cache-Control: public, max-age=300, must-revalidate
+  
+# Static assets - Short cache during development
+/assets/js/*
+  Cache-Control: public, max-age=300, must-revalidate
+  
+/assets/css/*
+  Cache-Control: public, max-age=300, must-revalidate
+  
+# Images can be cached longer
+/assets/images/*
+  Cache-Control: public, max-age=86400
+  
+# API routes - no cache
+/api/*
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# Force HTTPS and security headers
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(self), geolocation=(), payment=()
