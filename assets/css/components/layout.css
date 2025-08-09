@@ -1,0 +1,35 @@
+/* Main App Layout */
+.app {
+    display: flex;
+    height: 100vh;
+}
+
+.main {
+    flex: 1;
+    background: var(--primary-light);
+    overflow: hidden;
+}
+
+/* Responsive Layout */
+@media (max-width: 768px) {
+    .app {
+        flex-direction: column;
+    }
+    
+    .sidebar {
+        width: 100% !important;
+        height: auto;
+        order: 2;
+    }
+    
+    .main {
+        order: 1;
+        height: calc(100vh - 80px);
+    }
+}
+
+@media (max-width: 480px) {
+    .page-container {
+        padding: 16px !important;
+    }
+}
