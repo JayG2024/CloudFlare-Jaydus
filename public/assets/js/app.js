@@ -1013,7 +1013,7 @@ function JaydusAI() {
     };
 
     // Perplexity-style search interface
-    function renderAISearch() {
+    function AISearchView() {
         return (
         <div className="search-page">
             {/* Header */}
@@ -1325,7 +1325,7 @@ function JaydusAI() {
     }
 
     // Dashboard Component
-    function renderDashboard() {
+    function DashboardView() {
         return (
         <div className="dashboard-container" style={{padding: '24px'}}>
             <h1 style={{fontSize: '28px', fontWeight: '600', marginBottom: '24px'}}>Welcome to Jaydus AI</h1>
@@ -1387,7 +1387,7 @@ function JaydusAI() {
     }
 
     // Chat Component
-    function renderChat() {
+    function ChatView() {
         return (
         <div className="chat-container">
             <div className="chat-messages">
@@ -1422,7 +1422,7 @@ function JaydusAI() {
     }
 
     // Custom Assistants Component
-    function renderCustomAssistants() {
+    function CustomAssistantsView() {
         return (
         <div style={{padding: '24px'}}>
             <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>AI Assistants</h2>
@@ -1443,7 +1443,7 @@ function JaydusAI() {
     }
 
     // Image Generator Component
-    function renderImageGenerator() {
+    function ImageGeneratorView() {
         return (
         <div style={{padding: '24px'}}>
             <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>AI Image Generator</h2>
@@ -1480,7 +1480,7 @@ function JaydusAI() {
     }
 
     // Voice Creator Component
-    function renderVoiceCreator() {
+    function VoiceCreatorView() {
         return (
         <div style={{padding: '24px'}}>
             <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>AI Voice Synthesis</h2>
@@ -1506,7 +1506,7 @@ function JaydusAI() {
     }
 
     // Code Assistant Component
-    function renderCodeAssistant() {
+    function CodeAssistantView() {
         return (
         <div style={{padding: '24px'}}>
             <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>Code Assistant</h2>
@@ -1526,7 +1526,7 @@ function JaydusAI() {
     }
 
     // Analytics Component
-    function renderAnalytics() {
+    function AnalyticsView() {
         return (
         <div style={{padding: '24px'}}>
             <h2 style={{fontSize: '24px', fontWeight: '600', marginBottom: '20px'}}>Analytics</h2>
@@ -1552,14 +1552,14 @@ function JaydusAI() {
     const renderContent = () => {
         try {
             switch (activeTab) {
-                case 'dashboard': return renderDashboard();
-                case 'chat': return renderChat();
-                case 'search': return renderAISearch();
-                case 'assistants': return renderCustomAssistants();
-                case 'image': return renderImageGenerator();
-                case 'voice': return renderVoiceCreator();
-                case 'code': return renderCodeAssistant();
-                case 'analytics': return renderAnalytics();
+                case 'dashboard': return <DashboardView />;
+                case 'chat': return <ChatView />;
+                case 'search': return <AISearchView />;
+                case 'assistants': return <CustomAssistantsView />;
+                case 'image': return <ImageGeneratorView />;
+                case 'voice': return <VoiceCreatorView />;
+                case 'code': return <CodeAssistantView />;
+                case 'analytics': return <AnalyticsView />;
                 case 'team': 
                     return (
                         <div style={{padding: '24px'}}>
