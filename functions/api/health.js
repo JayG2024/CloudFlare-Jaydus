@@ -9,7 +9,8 @@ export async function onRequest(context) {
     services: {
       api: 'operational',
       aiml: env.AIML_API_KEY ? 'configured' : 'missing_key',
-      luma: env.LUMA_API_KEY ? 'configured' : 'missing_key'
+      luma: env.LUMA_API_KEY ? 'configured' : 'missing_key',
+      serper: env.SERPER_API_KEY ? 'configured' : 'optional'
     }
   };
 

@@ -256,11 +256,11 @@ async function handleSearch(request, env) {
     // Sanitize input
     const sanitizedQuery = sanitizeInput(query);
     
-    // Check if Perplexity API key is configured
-    if (!env.PERPLEXITY_API_KEY) {
+    // Check if required API keys are configured
+    if (!env.AIML_API_KEY) {
       return new Response(JSON.stringify({ 
         error: 'Search service not configured',
-        message: 'Perplexity API key is missing. Please configure PERPLEXITY_API_KEY in environment variables.',
+        message: 'AIML API key is missing. Please configure AIML_API_KEY in environment variables.',
         code: 'MISSING_API_KEY'
       }), {
         status: 503,
@@ -268,35 +268,100 @@ async function handleSearch(request, env) {
       });
     }
     
-    // Use Perplexity Sonar API for real search
-    const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+    // Step 1: Get real-time search results using Serper API
+    let searchResults = [];
+    let sources = [];
+    
+    if (env.SERPER_API_KEY) {
+      try {
+        const serperResponse = await fetch('https://google.serper.dev/search', {
+          method: 'POST',
+          headers: {
+            'X-API-KEY': env.SERPER_API_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            q: sanitizedQuery,
+            num: 5
+          })
+        });
+        
+        if (serperResponse.ok) {
+          const serperData = await serperResponse.json();
+          
+          // Extract search results
+          if (serperData.organic) {
+            searchResults = serperData.organic.slice(0, 5).map(result => ({
+              title: result.title,
+              snippet: result.snippet,
+              link: result.link
+            }));
+            
+            sources = serperData.organic.slice(0, 3).map(result => ({
+              title: result.title,
+              url: result.link,
+              description: result.snippet
+            }));
+          }
+        }
+      } catch (serperError) {
+        console.error('Serper API error:', serperError);
+        // Continue without real-time results
+      }
+    }
+    
+    // Step 2: Use ChatGPT to synthesize the search results
+    const systemPrompt = `You are a web search assistant that provides comprehensive, accurate answers to user queries. You will be given real-time search results to help you provide current information.
+
+RESPONSE FORMAT:
+- Start with a **Direct Answer** section that directly answers the user's question
+- Follow with an **Analysis** section that provides deeper context and details  
+- Include specific facts, numbers, and recent developments when relevant
+- Synthesize information from the provided search results when available
+- Write in a clear, informative style similar to Perplexity
+- Keep responses comprehensive but well-organized
+
+Your goal is to provide the most current, accurate information available on the topic.`;
+
+    let contextMessage = `Search and provide comprehensive information about: ${sanitizedQuery}`;
+    
+    if (searchResults.length > 0) {
+      contextMessage += `\n\nHere are the latest search results to help inform your response:\n\n`;
+      searchResults.forEach((result, index) => {
+        contextMessage += `${index + 1}. **${result.title}**\n   ${result.snippet}\n   Source: ${result.link}\n\n`;
+      });
+    }
+
+    const searchResponse = await fetch('https://api.aimlapi.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${env.PERPLEXITY_API_KEY}`,
+        'Authorization': `Bearer ${env.AIML_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.1-sonar-small-128k-online',
+        model: 'gpt-4o-2024-08-06',  // Use GPT-4o for synthesis
         messages: [
           {
             role: 'system',
-            content: 'Be precise and concise. Provide a direct answer followed by key supporting information. Include relevant sources when possible.'
+            content: systemPrompt
           },
           {
             role: 'user', 
-            content: sanitizedQuery
+            content: contextMessage
           }
-        ]
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
       })
     });
 
-    if (!perplexityResponse.ok) {
-      const errorData = await perplexityResponse.text();
-      console.error('Perplexity API error:', perplexityResponse.status, errorData);
+    if (!searchResponse.ok) {
+      const errorData = await searchResponse.text();
+      console.error('Search API error:', searchResponse.status, errorData);
       
       return new Response(JSON.stringify({ 
         error: 'Search service error',
-        message: `Perplexity API returned ${perplexityResponse.status}. Please try again.`,
+        message: `Search API returned ${searchResponse.status}. Please try again.`,
         code: 'API_ERROR'
       }), {
         status: 502,
@@ -304,8 +369,8 @@ async function handleSearch(request, env) {
       });
     }
 
-    const perplexityData = await perplexityResponse.json();
-    const content = perplexityData.choices[0]?.message?.content || '';
+    const searchData = await searchResponse.json();
+    const content = searchData.choices[0]?.message?.content || '';
     
     if (!content) {
       return new Response(JSON.stringify({ 
@@ -321,11 +386,18 @@ async function handleSearch(request, env) {
     const response = {
       query: sanitizedQuery,
       synthesizedResponse: content,
-      sources: perplexityData.citations || [],
+      sources: sources.length > 0 ? sources : [
+        {
+          title: `AI Web Search Results for "${sanitizedQuery}"`,
+          url: "#",
+          description: "Comprehensive search results powered by GPT-4o"
+        }
+      ],
       relatedQuestions: [
         `What are the latest developments in ${sanitizedQuery}?`,
         `How does ${sanitizedQuery} work?`,
-        `What are the benefits of ${sanitizedQuery}?`
+        `What are the benefits of ${sanitizedQuery}?`,
+        `What are the current trends regarding ${sanitizedQuery}?`
       ]
     };
 
